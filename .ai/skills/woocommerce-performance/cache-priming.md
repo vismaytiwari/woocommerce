@@ -50,7 +50,7 @@ Applies to: `woocommerce_related_products()`, `woocommerce_upsell_display()`, bl
 
 Variation collections require a three-phase approach because attachment IDs are not available until variation postmeta is warm. After phase 1, both `_thumbnail_id` and `_product_image_gallery` are postmeta cache hits, so the collection loop in phase 2 costs nothing extra.
 
-Note: `_product_image_gallery` is stored as a comma-separated string (`"12,34,56"`), not serialized — use `explode( ',', ... )`, not `maybe_unserialize` or multi-value `get_post_meta`. Cast with `array_map( 'intval', ... )` immediately after exploding so all IDs are integers before the merge: this ensures `array_filter` drops `0` (the result of `intval('')` on an empty gallery string) and `array_unique` compares homogeneous types alongside the thumbnail integer.
+Note: `_product_image_gallery` is stored as a comma-separated string (`"12,34,56"`), not serialized — use `explode( ',', ... )`, not `maybe_unserialize` or multi-value `get_post_meta`. Collect raw scalar values (strings from `explode`, the bare `get_post_meta` return for the thumbnail) into the flat merged array first; `array_filter` removes all falsy values (`''` from a missing thumbnail, `''` and `'0'` from an empty gallery string); `array_unique` deduplicates the surviving strings; `array_map( 'intval', ... )` casts the result to integers.
 
 ```php
 if ( ! empty( $variation_ids ) ) {
@@ -60,10 +60,10 @@ if ( ! empty( $variation_ids ) ) {
     // Phase 2: extract all attachment IDs from now-warm postmeta and prime them in one batch.
     $attachment_ids = array();
     foreach ( $variation_ids as $vid ) {
-        $attachment_ids[] = array( (int) get_post_meta( $vid, '_thumbnail_id', true ) );
-        $attachment_ids[] = array_map( 'intval', explode( ',', (string) get_post_meta( $vid, '_product_image_gallery', true ) ) );
+        $attachment_ids[] = array( get_post_meta( $vid, '_thumbnail_id', true ) );
+        $attachment_ids[] = explode( ',', (string) get_post_meta( $vid, '_product_image_gallery', true ) );
     }
-    $attachment_ids = array_unique( array_filter( array_merge( ...$attachment_ids ) ) );
+    $attachment_ids = array_map( 'intval', array_unique( array_filter( array_merge( ...$attachment_ids ) ) ) );
     if ( ! empty( $attachment_ids ) ) {
         _prime_post_caches( $attachment_ids );
     }
