@@ -20,7 +20,7 @@ if ( ! empty( $ids ) ) {
 
 The comment `// Prime caches to reduce future queries.` must always sit **inside** the `if` block, directly above the call. Do not place it before the `if`. Place the prime immediately before the loop or `array_map` that consumes the IDs. Exception: if a `do_action` call between the guard and the loop passes the IDs as arguments (e.g. `do_action( 'wc_before_products_starting_sales', $product_ids )`), move the prime before that action so hooked callbacks loading the same objects also benefit from the warmed cache. If the action does not receive the IDs, keep the prime directly above the loop.
 
-`_prime_post_caches()` is a WordPress internal (underscore-prefixed) that has existed since WP 4.1. The minimum supported WordPress version for WooCommerce guarantees its presence — `is_callable( '_prime_post_caches' )` guards are unnecessary and must be removed when encountered. Always wrap in `! empty()` to avoid a no-op SQL on empty arrays.
+`_prime_post_caches()` is a WordPress internal (underscore-prefixed) that has existed since WP 4.1. The minimum supported WordPress version for WooCommerce guarantees its presence — `is_callable( '_prime_post_caches' )` guards are unnecessary and must be removed when encountered. Always wrap in `! empty()` as a readability convention; WordPress short-circuits internally before firing SQL on an empty array, so this is not a correctness requirement. The function chunks large ID lists at 500 per `SELECT` query internally, so passing 800 IDs produces 2 queries, not 800 — batching is always safe regardless of collection size.
 
 ---
 
@@ -28,7 +28,7 @@ The comment `// Prime caches to reduce future queries.` must always sit **inside
 
 **Apply when:** Code that fetches products and then renders them (templates, blocks), especially with thumbnails.
 
-**Correct pattern:**
+**Correct pattern — simple product collections:**
 
 ```php
 if ( ! empty( $product_ids ) ) {
@@ -36,12 +36,41 @@ if ( ! empty( $product_ids ) ) {
     _prime_post_caches( $product_ids );
     $products = array_filter( array_map( 'wc_get_product', $product_ids ), 'wc_products_array_filter_visible' );
 
-    // Prime caches to reduce future queries.
-    _prime_post_caches( array_filter( array_map( fn( $p ) => (int) $p->get_image_id(), $products ) ) );
+    $thumbnail_ids = array_filter( array_map( fn( $p ) => (int) $p->get_image_id(), $products ) );
+    if ( ! empty( $thumbnail_ids ) ) {
+        // Prime caches to reduce future queries.
+        _prime_post_caches( $thumbnail_ids );
+    }
 }
 ```
 
 Applies to: `woocommerce_related_products()`, `woocommerce_upsell_display()`, block type `RelatedProducts`, and any similar rendering functions.
+
+**Correct pattern — variation collections:**
+
+Variation collections require a three-phase approach because attachment IDs are not available until variation postmeta is warm. After phase 1, both `_thumbnail_id` and `_product_image_gallery` are postmeta cache hits, so the collection loop in phase 2 costs nothing extra.
+
+Note: `_product_image_gallery` is stored as a comma-separated string (`"12,34,56"`), not serialized — use `explode( ',', ... )`, not `maybe_unserialize` or multi-value `get_post_meta`.
+
+```php
+if ( ! empty( $variation_ids ) ) {
+    // Phase 1: prime variation posts + postmeta.
+    _prime_post_caches( $variation_ids );
+
+    // Phase 2: extract all attachment IDs from now-warm postmeta and prime them in one batch.
+    $attachment_ids = array();
+    foreach ( $variation_ids as $vid ) {
+        $attachment_ids[] = array( (int) get_post_meta( $vid, '_thumbnail_id', true ) );
+        $attachment_ids[] = explode( ',', (string) get_post_meta( $vid, '_product_image_gallery', true ) );
+    }
+    $attachment_ids = array_unique( array_filter( array_merge( ...$attachment_ids ) ) );
+    if ( $attachment_ids ) {
+        _prime_post_caches( $attachment_ids );
+    }
+}
+```
+
+**Scope priming to attachment IDs your code actually accesses.** Prime attachment posts only when the render path calls `get_post()`, `wp_attachment_is_image()`, `wp_get_attachment_image_src()`, or `get_the_title()` on each ID. Returning IDs as raw integers in a response array (e.g. a REST API `gallery_image_ids` field that passes IDs through without hydrating them) requires no attachment priming — the attachment `wp_posts` rows are never read.
 
 ---
 
