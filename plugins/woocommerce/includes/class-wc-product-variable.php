@@ -335,9 +335,9 @@ class WC_Product_Variable extends WC_Product {
 			_prime_post_caches( $variation_ids );
 
 			$attachment_ids = array();
-			foreach ( $variation_ids as $vid ) {
-				$attachment_ids[] = array( (int) get_post_meta( $vid, '_thumbnail_id', true ) );
-				$attachment_ids[] = array_map( 'intval', explode( ',', (string) get_post_meta( $vid, '_product_image_gallery', true ) ) );
+			foreach ( $variation_ids as $variation_id ) {
+				$attachment_ids[] = array( (int) get_post_meta( $variation_id, '_thumbnail_id', true ) );
+				$attachment_ids[] = array_map( 'intval', explode( ',', (string) get_post_meta( $variation_id, '_product_image_gallery', true ) ) );
 			}
 			$attachment_ids = array_unique( array_filter( array_merge( ...$attachment_ids ) ) );
 			if ( ! empty( $attachment_ids ) ) {
