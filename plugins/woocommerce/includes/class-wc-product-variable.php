@@ -334,14 +334,16 @@ class WC_Product_Variable extends WC_Product {
 			// Prime caches to reduce future queries.
 			_prime_post_caches( $variation_ids );
 
-			$attachment_ids = array();
-			foreach ( $variation_ids as $variation_id ) {
-				$attachment_ids[] = array( get_post_meta( $variation_id, '_thumbnail_id', true ) );
-				$attachment_ids[] = explode( ',', (string) get_post_meta( $variation_id, '_product_image_gallery', true ) );
-			}
-			$attachment_ids = array_map( 'intval', array_unique( array_filter( array_merge( ...$attachment_ids ) ) ) );
-			if ( ! empty( $attachment_ids ) ) {
-				_prime_post_caches( $attachment_ids );
+			if ( 'array' === $return ) {
+				$attachment_ids = array();
+				foreach ( $variation_ids as $variation_id ) {
+					$attachment_ids[] = array( get_post_meta( $variation_id, '_thumbnail_id', true ) );
+					$attachment_ids[] = explode( ',', (string) get_post_meta( $variation_id, '_product_image_gallery', true ) );
+				}
+				$attachment_ids = array_map( 'intval', array_unique( array_filter( array_merge( ...$attachment_ids ) ) ) );
+				if ( ! empty( $attachment_ids ) ) {
+					_prime_post_caches( $attachment_ids );
+				}
 			}
 		}
 
