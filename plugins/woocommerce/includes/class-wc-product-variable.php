@@ -363,9 +363,8 @@ class WC_Product_Variable extends WC_Product {
 			// Prime caches to reduce future queries.
 			$attachment_ids = array();
 			foreach ( $available_variations as $variation ) {
-				$variation_id     = $variation->get_id();
-				$attachment_ids[] = array( get_post_meta( $variation_id, '_thumbnail_id', true ) );
-				$attachment_ids[] = explode( ',', (string) get_post_meta( $variation_id, '_product_image_gallery', true ) );
+				$attachment_ids[] = array( $variation->get_image_id( 'edit' ) );
+				$attachment_ids[] = $variation->get_gallery_image_ids( 'edit' );
 			}
 			$attachment_ids = array_map( 'intval', array_unique( array_filter( array_merge( ...$attachment_ids ) ) ) );
 			if ( ! empty( $attachment_ids ) ) {
